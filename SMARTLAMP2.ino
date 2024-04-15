@@ -26,12 +26,12 @@ const char pass[] = STAPSK;
 unsigned long weatherStationChannelNumber = SECRET_CH_ID_WEATHER_STATION;
 
 //
-int statusCode = 0;
+//int statusCode = 0;
 //int field[8] = {1,2,3,4,5,6,7,8};
 int led_pin = D7;
 #define N_DIMMERS 1
 int dimmer_pin[] = { D0, D0, 15 };
-bool wm_nonblocking = false;
+bool wm_nonblocking =true;
 bool stateAuto;
 int  stateLed1;
 int  stateLed2;
@@ -44,11 +44,14 @@ bool lastStateAuto;
 int LDR_Val; // Analog value from the LDR
 int Iluminance; //Lux value
 bool stateRun = false;
-
+bool sRun = false;
+int lastConnectionAttempt = millis();
+int connectionDelay = 5000; // try to reconnect every 5 seconds
 WiFiManager wm;
 
 void setup() {
   WiFi.mode(WIFI_STA);
+  //wm.resetSettings();
   Serial.begin(115200); 
   pinMode(led_pin, OUTPUT);
   pinMode(led1,OUTPUT);
@@ -113,22 +116,62 @@ unsigned long sv=0;
 void loop() {
   if(wm_nonblocking) wm.process(); // avoid delays() in loop when non-blocking and other long running code  
   ArduinoOTA.handle();
-   LDR_Val = analogRead(Analog_Pin);
-  Iluminance = conversion(LDR_Val);
-  if(millis() - sv > 3000){
+  int statusCode = 0; 
+  stateWIFI();
+ // LDR_Val = analogRead(Analog_Pin);
+//  Iluminance = conversion(LDR_Val);
+  if(millis() - sv > 1000){
     sv = millis();
-  statusCode = ThingSpeak.readMultipleFields(weatherStationChannelNumber);
+  int state = ThingSpeak.readIntField(weatherStationChannelNumber,1); // Field 1
+  statusCode = ThingSpeak.getLastReadStatus();
+  if(statusCode == 200)
+    { 
+      stateAuto = state;
+      Serial.println("stateAuto: " + String(stateAuto)); 
+    }
+  else{
+      Serial.println("Problem reading channel. HTTP error code " + String(statusCode)); 
+    }
+
+  stateLed1 = ThingSpeak.readIntField(weatherStationChannelNumber,2); // Field 2
+  statusCode = ThingSpeak.getLastReadStatus();
   if(statusCode == 200)
     {
-      stateAuto = ThingSpeak.getFieldAsInt(1); // Field 1
-      stateLed1 = ThingSpeak.getFieldAsInt(2); // Field 1
-      stateLed2 = ThingSpeak.getFieldAsInt(3); // Field 1
-      stateLed3 = ThingSpeak.getFieldAsInt(4); // Field 1
+      Serial.println(String()+"stateled1:"+stateLed1);
+      if(stateLed1 == 1 && stateAuto == 0){ digitalWrite( led1,LOW);}
+      else if (stateLed1 == 0 && stateAuto == 0){ digitalWrite( led1,HIGH); }
+    }
+  else{
+      Serial.println("Problem reading channel. HTTP error code " + String(statusCode)); 
+    }
+
+  stateLed2 = ThingSpeak.readIntField(weatherStationChannelNumber,3); // Field 3
+  statusCode = ThingSpeak.getLastReadStatus();
+  if(statusCode == 200)
+    {
+      Serial.println(String()+"stateled2:"+stateLed2);
+      if(stateLed2 == 1 && stateAuto == 0){ digitalWrite( led2,LOW);}
+      else if(stateLed2 == 0 && stateAuto == 0){ digitalWrite( led2,HIGH); }
+    }
+  else{
+      Serial.println("Problem reading channel. HTTP error code " + String(statusCode)); 
+    }
+    
+  stateLed3 = ThingSpeak.readIntField(weatherStationChannelNumber,4); // Field 4
+  statusCode = ThingSpeak.getLastReadStatus();
+  if(statusCode == 200)
+    {
+      Serial.println(String()+"stateled3:"+stateLed3);
+      if(stateLed3 == 1 && stateAuto == 0){ digitalWrite( led3,LOW);}
+      else if(stateLed3 == 0 && stateAuto == 0){ digitalWrite( led3,HIGH); }
     }
   else{
       Serial.println("Problem reading channel. HTTP error code " + String(statusCode)); 
     }
   }
+
+
+  
 
 if(stateAuto){ 
       blink(1); 
@@ -138,14 +181,11 @@ if(stateAuto){
       blink(0); 
       stateRun = 0; 
     }
-if(stateLed1 == 1 && stateAuto == 0){ digitalWrite( led1,LOW);}
-  else if (stateLed1 == 0 && stateAuto == 0){ digitalWrite( led1,HIGH); }
+  
 
-  if(stateLed2 == 1 && stateAuto == 0){ digitalWrite( led2,LOW);}
-  else if(stateLed2 == 0 && stateAuto == 0){ digitalWrite( led2,HIGH); }
+  
 
-  if(stateLed3 == 1 && stateAuto == 0){ digitalWrite( led3,LOW);}
-  else if(stateLed3 == 0 && stateAuto == 0){ digitalWrite( led3,HIGH); }
+  
 
   digitalWrite(dimmer_pin[0],stateRun);
 
@@ -161,26 +201,63 @@ int conversion(int raw_val){
 
 void kalkulasi(){
   
-  if(LDR_Val <= 450 ){
-    
-     stateLedAuto2 = 1;
-     stateLedAuto3 = 1;
+//  if(LDR_Val <= 450 ){
+//    
+//     stateLedAuto2 = 1;
+//     stateLedAuto3 = 1;
+//  }
+//
+//  else if(LDR_Val >= 1000 ){
+//    stateLedAuto1 = 0;
+//     stateLedAuto2 = 0;
+//     stateLedAuto3 = 0;
+//  }
+
+  if(stateLed1 == 1 && stateAuto == 1){ digitalWrite( led1,LOW);}
+  else if (stateLed1 == 0 && stateAuto == 1){ digitalWrite( led1,HIGH); }
+
+  if(stateLed2 == 1 && stateAuto == 1){ digitalWrite( led2,LOW);}
+  else if (stateLed2 == 0 && stateAuto == 1){ digitalWrite( led2,HIGH); }
+
+  if(stateLed3 == 1 && stateAuto == 1){ digitalWrite( led3,LOW);}
+  else if(stateLed3 == 0 && stateAuto == 1){ digitalWrite( led3,HIGH); }
+}
+
+
+
+
+
+
+void stateWIFI() {
+  // check WiFi connection:
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    // (optional) "offline" part of code
+    sRun = false;
+    analogWrite(led_pin,LOW);
+    // check delay:
+    if (millis() - lastConnectionAttempt >= connectionDelay)
+    {
+      lastConnectionAttempt = millis();
+        Serial.println(String()+"disconnect");
+      // attempt to connect to Wifi network:
+        //WiFi.begin((char*)ssid, (char*)pass);
+        //WiFi.begin(WiFi.SSID(), WiFi.psk());
+        wm.setConfigPortalTimeout(5);
+       if(!wm.autoConnect())
+       {
+         Serial.println("auto connect failed");
+         delay(1000);
+         ESP.restart();
+       }
+       else{
+        ThingSpeak.begin(client); 
+        ArduinoOTA.begin();
+        Serial.println("RECONNECT");
+       }
+    }
   }
-
-  else if(LDR_Val >= 1000 ){
-    stateLedAuto1 = 0;
-     stateLedAuto2 = 0;
-     stateLedAuto3 = 0;
-  }
-
-  if(stateLedAuto1 == 1 && stateAuto == 1){ digitalWrite( led1,LOW);}
-  else if (stateLedAuto1 == 0 && stateAuto == 1){ digitalWrite( led1,HIGH); }
-
-  if(stateLedAuto2 == 1 && stateAuto == 1){ digitalWrite( led2,LOW);}
-  else if (stateLedAuto2 == 0 && stateAuto == 1){ digitalWrite( led2,HIGH); }
-
-  if(stateLedAuto3 == 1 && stateAuto == 1){ digitalWrite( led3,LOW);}
-  else if(stateLedAuto3 == 0 && stateAuto == 1){ digitalWrite( led3,HIGH); }
+  else if(WiFi.status() == WL_CONNECTED){ blinkRun(1); }
 }
 
 /*
@@ -222,4 +299,17 @@ void blink(int state){
     saveTime = tmr;
     stateRun = !stateRun;
   }
+}
+
+void blinkRun(int state){
+  if(!state) return;
+
+  unsigned long tmr = millis();
+  static unsigned long saveTime = 0;
+
+  if((tmr - saveTime) > 1000){
+    saveTime = tmr;
+    sRun = !sRun;
+  }
+  digitalWrite(led_pin,sRun);
 }
